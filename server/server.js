@@ -1,39 +1,109 @@
-var mongoose = require('mongoose');
-mongoose.Promise = global.Promise;
+const _ = require('lodash');
+const express = require('express');
+const bodyParser = require('body-parser');
 
-const url = 'mongodb://localhost:27017/TodoApp';
-mongoose.connect(url);
+const {ObjectID} = require('mongodb');
+var {mongoose} = require('./db/mongoose');
+var {Todo} = require('./models/todo');
+var {User} = require('./models/user')
 
-var Todo = mongoose.model('Todo',{
-  text: {
-    type: String
-  },
-  completed:{
-    type: Boolean
-  },
-  completedAt: {
-    type: Number
+var app= express();
+
+app.use(bodyParser.json());
+
+const port = app.eventNames.PORT || 3000;
+
+app.post('/todo',(req,res)=>{
+  var todo = new Todo({
+    text : req.body.text,
+    completed: req.body.completed,
+    completedAt: req.body.completedAt
+  })
+  todo.save().then((doc)=>{
+    res.status(200).send(doc)
+  },(e)=>{
+    res.status(400).send(e)
+  });
+
+});
+
+
+app.post('/useras', (req, res)=>{
+  var use = new User({
+    email: req.body.email
+  });
+  use.save().then((result)=>{
+    res.status(200).send(result)
+  },(e)=>{
+    res.status(400).send(e)
+  })
+});
+
+app.get('/todos',(req,res)=>{
+  Todo.find().then((result)=>{
+    res.status(200).send(result);
+  },(e)=>{
+    res.status(400).send();
+  });
+});
+
+app.delete('/todos/:id',(req,res)=>{
+  var id = req.params.id
+  if(!ObjectID.isValid(id)){
+    return res.status(404).send()
   }
+  Todo.findByIdAndDelete(id).then((result)=>{
+    if(!result){
+      return res.status(400).send();
+    }
+    res.status(200).send(result)
+  }).catch((e) =>console.log(e))
 });
 
-// var newTodo = new Todo({
-//   text: 'Cook dinner',
+app.patch('/todos/:id',(req,res)=>{
+  var id = req.params.id;
+  var body = _.pick(req.body,['text', 'completed']);
+
+  if(!ObjectID.isValid(id)){
+    res.status(404).send();
+  }
+
+  if(_.isBoolean(body.completed) && body.completed){
+    body.completedAt = new Date().getTime();
+  }else {
+    completed = false;
+    completedAt = null;
+  }
+
+  Todo.findByIdAndUpdate(id,{$set: body}, {new : true}).then((todo)=>{
+    if(!todo){
+      return res.status(404).send();
+    }
+
+    res.send({todo});
+  }).catch((e) =>{
+    res.status(400).send();
+  });
+});
+
+
+
+app.listen(port,()=>{
+  console.log(`Started server on port ${port}`)
+});
+
+
+
+// var otherTodo = new Todo({
+//   text: 'feed the cat',
+//   completed: true,
+//   completedAt: 345
 // });
-//
-// newTodo.save().then((doc)=> {
-//   console.log('Saved todo', doc);
-// }, (err)=>{
-//   console.log('unable to save todo');
+
+// otherTodo.save().then((doc)=>{
+//   console.log(JSON.stringify(doc, undefined, 2));
+// }, (e)=>{
+//   console.log('unbale to save OtherTodo');
 // });
 
-var otherTodo = new Todo({
-  text: 'feed the cat',
-  completed: true,
-  completedAt: 345
-});
-
-otherTodo.save().then((doc)=>{
-  console.log(JSON.stringify(doc, undefined, 2));
-}, (e)=>{
-  console.log('unbale to save OtherTodo');
-});
+module.exports = {app};
